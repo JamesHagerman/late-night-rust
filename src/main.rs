@@ -4,9 +4,9 @@
 // mod strings;
 // mod tuples;
 // mod arrays;
-// mod sdl_tests;
+mod sdl_tests;
 
-mod fann;
+//mod fann;
 
 fn main() {
     println!("Hello, world!");
@@ -16,6 +16,6 @@ fn main() {
     // strings::run();
     // tuples::run();
     // arrays::run();
-    // sdl_tests::run();
-    fann::run();
+    sdl_tests::run();
+    // fann::run();
 }
