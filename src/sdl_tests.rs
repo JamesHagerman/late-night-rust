@@ -24,9 +24,9 @@ struct SquareWave {
 }
 
 impl SquareWave {
-    fn update_pwm(&mut self, new_pwm: &f32) {
+    fn update_pwm(&mut self, new_pwm: f32) {
         println!("Updating PWM to {:?}", new_pwm);
-        self.pwm = *new_pwm;
+        self.pwm = new_pwm;
         if self.pwm > 0.9 {
             self.pwm = 0.9
         }
@@ -81,46 +81,64 @@ pub fn run() {
         volume: 0.25,
         pwm: 0.9
     };
+
+    println!("Initial pwm value: {:?}", my_audio_callback.pwm);
+    my_audio_callback.update_pwm(0.5);
+    println!("New, initial pwm value: {:?}", my_audio_callback.pwm);
     
-    let device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+
+    // Open an audio device to playback and set up the AudioCallback which will be called and generate samples at the sample rate defined in AudioSpecDesired:
+    let device = audio_subsystem.open_playback(None, &desired_spec, |_spec| {
         my_audio_callback
     }).unwrap();
  
+    // Create a new SDL window:
     let window = video_subsystem.window("rust-sdl2 demo", 800, 600)
         .position_centered()
         .build()
         .unwrap();
  
+    // Create a new SDL canvas in the window:
     let mut canvas = window.into_canvas().build().unwrap();
  
+    // Draw some stuff to the canvas:
     canvas.set_draw_color(Color::RGB(0, 255, 255));
     canvas.clear();
     canvas.present();
 
-    // Start playback
+    // Start audio playback. The AudioCallback will start being called at the sample rate and generated samples will output to the audio sink:
     device.resume();
     
     // Play for 2 seconds
     // std::thread::sleep(Duration::from_millis(2000));
 
-    // Some mouse tracking bigs
+    // Keep track of any previously pressed mouse buttons:
     let mut prev_buttons = HashSet::new();
 
+    // Start grabing events from the SDL Context (the event_pump will "pump" events out of the context so we can handle them):
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut i = 0;
+
+    // This is the main SDL processing loop:
     'running: loop {
+
+        // Draw some pretty color cycles to the canvas:
         i = (i + 1) % 255;
         canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
         canvas.clear();
+
+        // Poll the event pump for important events (mostly keyboard events here):
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} |
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                    // Drop out of the game loop if the escape key is hit
                     break 'running
                 },
                 _ => {}
             }
         }
+
         // The rest of the game loop goes here...
 
         // do mouse stuff
@@ -130,6 +148,7 @@ pub fn run() {
         let new_buttons = &buttons - &prev_buttons;
         let old_buttons = &prev_buttons - &buttons;
 
+        // Mouse button state logging:
         if !new_buttons.is_empty() || !old_buttons.is_empty() {
             println!(
                 "X = {:?}, Y = {:?} : {:?} -> {:?}",
@@ -141,20 +160,22 @@ pub fn run() {
         }
         prev_buttons = buttons;
 
+        // Mouse x/y location logging:
         println!(
             "X = {:?}, Y = {:?}",
             state.x() as f32/800.0,
             state.y()
         );
 
+        // Attempt to update PWM value of AudioCallback in real time:
         let new_pwm_value = state.x() as f32/800.0;
+        //my_audio_callback.update_pwm(new_pwm_value);
 
-        // my_audio_callback.update_pwm(&new_pwm_value);
-
-
+        // Render the canvas:
         canvas.present();
         // ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60)); // this feels a little... mathy
         
+        // Sleep until the next frame:
         ::std::thread::sleep(Duration::from_millis(100));
     }
 }
