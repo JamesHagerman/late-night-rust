@@ -5,6 +5,9 @@
 //
 // Or, linux:
 // sudo apt install libsdl2-dev
+//
+// A very good tutorial for SDL based audio output is here: https://stasiak.at/updating-sdl2-audio-callback-data-in-rust.html
+// It should be saved in Internet Archive's Wayback Machine
 
 extern crate sdl2; // https://lib.rs/crates/sdl2
 
@@ -27,11 +30,11 @@ impl SquareWave {
     fn update_pwm(&mut self, new_pwm: f32) {
         println!("Updating PWM to {:?}", new_pwm);
         self.pwm = new_pwm;
-        if self.pwm > 0.9 {
-            self.pwm = 0.9
+        if self.pwm > 0.9999 {
+            self.pwm = 0.9999
         }
-        if self.pwm < 0.1 {
-            self.pwm = 0.1
+        if self.pwm < 0.0001 {
+            self.pwm = 0.0001
         }
     }
 }
@@ -39,14 +42,19 @@ impl SquareWave {
 impl AudioCallback for SquareWave {
     type Channel = f32;
 
+    // callback is called when the audio subsystem needs more audio sample data.
     fn callback(&mut self, out: &mut [f32]) {
-        // Generate a square wave
+        // Iterate across each of the samples in the `out` array and set their volume to correctly generate a square wave: 
         for x in out.iter_mut() {
+            
+            // Each sample should be 100% or 0% based on the current phase and the PWM amount:
             *x = if self.phase <= self.pwm {
                 self.volume
             } else {
                 -self.volume
             };
+
+            // Every sample, update the phase based on the current phase and the phase increment amount:
             self.phase = (self.phase + self.phase_inc) % 1.0;
         }
     }
@@ -87,8 +95,8 @@ pub fn run() {
     println!("New, initial pwm value: {:?}", my_audio_callback.pwm);
     
 
-    // Open an audio device to playback and set up the AudioCallback which will be called and generate samples at the sample rate defined in AudioSpecDesired:
-    let device = audio_subsystem.open_playback(None, &desired_spec, |_spec| {
+    // Open an audio device for playback at the sample rate defined in desired_spec, and set up the AudioCallback:
+    let mut audio_device = audio_subsystem.open_playback(None, &desired_spec, |_spec| {
         my_audio_callback
     }).unwrap();
  
@@ -106,8 +114,8 @@ pub fn run() {
     canvas.clear();
     canvas.present();
 
-    // Start audio playback. The AudioCallback will start being called at the sample rate and generated samples will output to the audio sink:
-    device.resume();
+    // Start audio playback. The AudioCallback will start being called when the audio subsystem needs more sample data:
+    audio_device.resume();
     
     // Play for 2 seconds
     // std::thread::sleep(Duration::from_millis(2000));
@@ -148,34 +156,41 @@ pub fn run() {
         let new_buttons = &buttons - &prev_buttons;
         let old_buttons = &prev_buttons - &buttons;
 
-        // Mouse button state logging:
+        // Handle mouse button state change:
         if !new_buttons.is_empty() || !old_buttons.is_empty() {
-            println!(
-                "X = {:?}, Y = {:?} : {:?} -> {:?}",
-                state.x(),
-                state.y(),
-                new_buttons,
-                old_buttons
-            )
+            // One of the buttons changed!!
+
+            // println!(
+            //     "X = {:?}, Y = {:?} : {:?} -> {:?}",
+            //     state.x(),
+            //     state.y(),
+            //     new_buttons,
+            //     old_buttons
+            // )
         }
         prev_buttons = buttons;
 
         // Mouse x/y location logging:
-        println!(
-            "X = {:?}, Y = {:?}",
-            state.x() as f32/800.0,
-            state.y()
-        );
+        // println!(
+        //     "X = {:?}, Y = {:?}",
+        //     state.x() as f32/800.0,
+        //     state.y()
+        // );
+
+        ::std::thread::sleep(Duration::from_millis(10));
+
+        // Lock the audio device so the audio callback gets dereferenced so we can access it and modify it:
+        let mut lock = audio_device.lock();
 
         // Attempt to update PWM value of AudioCallback in real time:
         let new_pwm_value = state.x() as f32/800.0;
-        //my_audio_callback.update_pwm(new_pwm_value);
+        lock.update_pwm(new_pwm_value);
 
         // Render the canvas:
         canvas.present();
         // ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60)); // this feels a little... mathy
         
         // Sleep until the next frame:
-        ::std::thread::sleep(Duration::from_millis(100));
+        ::std::thread::sleep(Duration::from_millis(10));
     }
 }
